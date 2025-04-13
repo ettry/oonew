@@ -2,7 +2,7 @@
 <h3 align="center">Control your computer like a Helldiver</h3>
 
 -----------------------------------
-###Use to say
+Use to say
 >The first time you use it, you create a file and ask for a shell to be set up
 >
 >Please enter the name of the virtual terminal directly
@@ -25,7 +25,7 @@
 
 <h3 align="center">像地狱潜兵一样使用你的电脑</h3>
 
-###使用说明
+使用说明
 >
 >第一次使用它时,你会创建一个文件并要求设置一个虚拟终端
 >
