@@ -14,7 +14,10 @@ use std::io::{self, BufReader, Write};
 use std::path::PathBuf;
 use std::process::{self, Command, Stdio};
 use std::time::{Duration, Instant};
+use std::usize::MAX;
 use std::vec;
+use std::{env, os::unix::ffi::OsStrExt, ffi::CString};
+use nix::unistd;
 
 //#[derive(Parser, Debug)] // 添加Debug trait方便调试
 //struct Claws {
@@ -88,7 +91,7 @@ struct Config {
 fn main() -> eframe::Result {
     let args = Claws::parse();
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([320.0, 240.0]),
+        viewport: egui::ViewportBuilder::default().with_inner_size([896.0, 580.0]),
         ..Default::default()
     };
     eframe::run_native(
@@ -199,13 +202,14 @@ impl KeyboardApp {
             yon: false,
             no_have_shell,
             del: false,
-            del_date: 100,
+            del_date: MAX,
         }
     }
 }
 
 impl eframe::App for KeyboardApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        ctx.set_visuals(egui::Visuals::dark());
         self.focused = ctx.input(|i| i.focused);
         ctx.input(|input| {
             for event in &input.events {
@@ -214,10 +218,10 @@ impl eframe::App for KeyboardApp {
                 } = event
                 {
                     let arrow = match key {
-                        egui::Key::ArrowLeft => "←",
-                        egui::Key::ArrowRight => "→",
-                        egui::Key::ArrowUp => "↑",
-                        egui::Key::ArrowDown => "↓",
+                        egui::Key::ArrowLeft => "⇦",
+                        egui::Key::ArrowRight => "⇨",
+                        egui::Key::ArrowUp =>"⇧",
+                        egui::Key::ArrowDown =>   "⇩",
                         egui::Key::Escape => "Escape",
                         egui::Key::Delete => "Delete",
                         egui::Key::Enter => "ADD",
@@ -229,12 +233,14 @@ impl eframe::App for KeyboardApp {
                         self.open = false;
                     } else if arrow == "Delete" && self.input_log.len() == 1 {
                         self.del = true;
+                        self.input_log.clear();
                     } else if arrow == "Delete" {
                         self.input_log.clear();
                     } else if arrow == "exit" {
                         self.add_in = false;
                         self.del = false;
                         self.yon = false;
+                        self.input_log.clear();
                     }
                 }
             }
@@ -246,7 +252,7 @@ impl eframe::App for KeyboardApp {
                 if !self.add_in {
                     self.input_log.clear();
                     self.add_in = true;
-                } else if !self.name.is_empty() && !self.stbrt.is_empty() && !self.peth.is_empty() {
+                } else if !self.name.is_empty() && !self.stbrt.is_empty() && !self.peth.is_empty()&& !self.peth.contains('"')  && !self.name.contains('"'){
                     match self.input_log.len() {
                         3 => {
                             self.config.a3_1.push(self.input_log[0].to_string());
@@ -329,8 +335,18 @@ impl eframe::App for KeyboardApp {
                     .expect("无法将 config 转换成 JSON 字符串");
                     file_config 
                         .write_all(updated_config_json.as_bytes()) 
-                        .expect("写入文件失败了 error code 1919810"); // 保留你的错误码喵
+                        .expect("写入文件失败了 error code 1919810"); 
                     self.add_in = false;
+                    let current_exe_path = env::current_exe().expect("not get in path");
+                    let args: Vec<String> = env::args().collect(); 
+                    let path_cstr = CString::new(current_exe_path.as_os_str().as_bytes())
+                        .expect("error in not get path");
+                    let args_cstr: Vec<CString> = args
+                        .iter()
+                        .map(|arg| CString::new(arg.as_bytes()).expect("error in restart"))
+                        .collect();
+                    let args_ptr: Vec<&std::ffi::CStr> = args_cstr.iter().map(|c| c.as_c_str()).collect();
+                    unistd::execv(&path_cstr, &args_ptr).expect("execy erroe");
                 }
                 break;
             }
@@ -342,16 +358,41 @@ impl eframe::App for KeyboardApp {
             }
             //ui.heading("");
             ui.horizontal(|ui| {
-                ui.label("esc exit app");
-                ui.label("delete enter delete modle");
-                ui.label("enter enter add mod");
-                ui.label("tap exit mod");
+                ui.label(
+                    "esc 键退出软件"
+                    //"esc key to exit the app,"
+                );
+                ui.label(
+                    "del 键进入删除模式"
+                    //"del key to delete mod,"
+                );
+                ui.label(
+                    "Enter 键进入添加模式"
+                    //"enter key to add mod,"
+                );
+                ui.label(
+                    "tap 键退出当前模式"
+                    //"tap key to exit mod"
+                );
             });
-
             if self.add_in {
-                ui.label(RichText::new("add mod").color(Color32::from_rgb(255, 192, 203)));
+                ui.label(RichText::new(
+                    "添加模式"
+                    //"add mod"
+                ).color(Color32::from_rgb(255, 192, 203)));
+                ui.label(RichText::new(
+                    "添加成功后会重启软件应用更改"
+                    //"add succeed the software will be restarted"
+                ).color(Color32::PURPLE));
             } else if self.del {
-                ui.label(RichText::new("delete mod").color(Color32::RED));
+                ui.label(RichText::new(
+                    "删除模式"
+                    //"delete mod"
+                ).color(Color32::RED));
+                ui.label(RichText::new(
+                    "删除成功后会重启软件应用更改"
+                    //"delete succeed The software will be restarted"
+                ).color(Color32::PURPLE));
             }
             let mut jsq: usize = 0;
             for ai in 0..self.config.a3_name.len() {
@@ -640,30 +681,55 @@ impl eframe::App for KeyboardApp {
 
             if self.add_in {
                 ui.horizontal(|ui| {
-                    ui.label("config name");
+                    ui.label(
+                        "设置名称"
+                    //    "config name"
+                    );
                     ui.text_edit_singleline(&mut self.name);
                 });
                 ui.horizontal(|ui| {
-                    if ui.button("shell").clicked() {
+                  if ui.button(
+                        "使用终端运行命令"
+                    //    "use Command line"
+                    ).clicked() {
                         self.stbrt = "t".to_string();
-                    } else if ui.button("use xdg-open").clicked() {
+                    } else if ui.button(
+                        "使用默认方式打开软件或文件"
+                    //    "use xdg-open for file or .disktop"
+                    ).clicked() {
                         self.stbrt = "x".to_string();
                     }
                 });
                 ui.horizontal(|ui| {
-                    ui.label("Command or path");
+                    ui.label(
+                        "设置命令或软件路径"
+                    //    "config Command or app path"
+                    );
                     ui.text_edit_singleline(&mut self.peth);
                 });
             }
 
             if self.yon {
-                ui.label("Please enter a name as well as how to start and target file or command");
-                ui.label("The input length should be 3 to 7 (both 3 and 7 inclusive)");
+                ui.label(RichText::new(
+                    "请设置命令或路径以及名称"
+                //  "please config Command or path and name"
+                ).color(Color32::YELLOW));
+                ui.label(RichText::new(
+                    "事件索引长度应该大于等于3小于等于7"
+                //        "input long time in 3 or 7 between"
+                ).color(Color32::YELLOW));
+                ui.label(RichText::new(
+                    "命令或路径或路径不要输入英文双引号但可以用单引号"
+                //    "Command or path is not have Double quotation marks"
+                ).color(Color32::YELLOW));
             }
 
-            if self.del_date < 100 {
+            if self.del_date < MAX {
                 ui.horizontal(|ui| {
-                    ui.label("Are you sure you want to delete the shortcut that is all green");
+                    ui.label(
+                        "确定删除全为绿色的索引吗"
+                    //    "Are you sure to delete the indexes that are all green?"
+                    );
                     if ui.button("yes").clicked() {
                         if self.del_date < self.config.a3_name.len() {
                             let temp = self.del_date;
@@ -747,19 +813,32 @@ impl eframe::App for KeyboardApp {
                             .write_all(updated_config_json.as_bytes()) 
                             .expect("写入文件失败了 error code 1919810"); 
                             self.del = false;
+                            self.del_date = MAX;
+                            let current_exe_path = env::current_exe().expect("not get in path");
+                            let args: Vec<String> = env::args().collect(); 
+                            let path_cstr = CString::new(current_exe_path.as_os_str().as_bytes())
+                                .expect("error in not get path");
+                            let args_cstr: Vec<CString> = args
+                                .iter()
+                                .map(|arg| CString::new(arg.as_bytes()).expect("error in restart"))
+                                .collect();
+                            let args_ptr: Vec<&std::ffi::CStr> = args_cstr.iter().map(|c| c.as_c_str()).collect();
+                            unistd::execv(&path_cstr, &args_ptr).expect("execy erroe");
                         }
-                    }
-                    if ui.button("no").clicked() {
+                    }else if ui.button("no").clicked() {
                         self.del = false;
-                        self.del_date = 100;
+                        self.del_date = MAX;
                         self.input_log.clear();
                     }
                 });
             }
 
             if self.no_have_shell {
+                ui.label(
+                    "检查到没有设置默认虚拟终端请设置"
+                //    "Check that no virtual emulation terminal is set up,please input terminal name"
+                );
                 ui.horizontal(|ui| {
-                    ui.label("Check that the default virtual terminal is not set, please set it");
                     ui.text_edit_singleline(&mut self.name);
                     if ui.button("yes").clicked() {
                         self.config.shell.push(self.name.to_string());
@@ -772,6 +851,16 @@ impl eframe::App for KeyboardApp {
                             .expect("写入文件失败error code 1919810");
                         self.name = "".to_string();
                         self.no_have_shell = false;
+                        let current_exe_path = env::current_exe().expect("not get in path");
+                        let args: Vec<String> = env::args().collect(); 
+                        let path_cstr = CString::new(current_exe_path.as_os_str().as_bytes())
+                            .expect("error in not get path");
+                        let args_cstr: Vec<CString> = args
+                            .iter()
+                            .map(|arg| CString::new(arg.as_bytes()).expect("error in restart"))
+                            .collect();
+                        let args_ptr: Vec<&std::ffi::CStr> = args_cstr.iter().map(|c| c.as_c_str()).collect();
+                        unistd::execv(&path_cstr, &args_ptr).expect("execv erroe");
                     }
                 });
             };
@@ -821,10 +910,10 @@ fn input_rx(
     }
 }
 
-fn start(input_path: String, ccc: String, ssh: String) -> io::Result<()> {
+fn start(input_path: String, ccc: String, sh: String) -> io::Result<()> {
     if ccc == "t" {
         let escaped_input_path = input_path.replace("'", "'\\''");
-        let mut cmd = Command::new(&ssh);
+        let mut cmd = Command::new(&sh);
         cmd.arg("-e"); 
         cmd.arg("sh");
         cmd.arg("-c");
@@ -835,7 +924,7 @@ fn start(input_path: String, ccc: String, ssh: String) -> io::Result<()> {
             Err(e) => {
                 if e.kind() == io::ErrorKind::NotFound {
     
-                    println!("终端 '{}' 未找到", &ssh);
+                    println!("终端 '{}' 未找到", &sh);
                     Ok(())
                 } else {
         
